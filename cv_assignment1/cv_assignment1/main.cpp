@@ -338,18 +338,52 @@ int main(int argc, char* argv[])
         
         putText( view, msg, textOrigin, 1, 1, mode == CALIBRATED ?  GREEN : RED);
         
-        for (int i = 0; i < pointBuf.size(); i++) {
+        //------------------------------ Draw   point   positions -----------------------------------
+        /* for (int i = 0; i < pointBuf.size(); i++) {
             string location = to_string((int)pointBuf[i].x) + ", " + to_string((int)pointBuf[i].y);
             Point position = Point(pointBuf[i].x + 7, pointBuf[i].y);
             putText( view, location , position, 1, .8f, GREEN);
-        }
+        } */
         
-        if (pointBuf.size() > 0) {
+        //------------------------------- Draw    basic    square -----------------------------------
+        /*if (pointBuf.size() > 0) {
             Scalar color = Scalar(255, 0, 0);
             line(view, pointBuf[7], pointBuf[8], color);
             line(view, pointBuf[8], pointBuf[17], color);
             line(view, pointBuf[16], pointBuf[17], color);
             line(view, pointBuf[7], pointBuf[16], color);
+        }*/
+        
+        //------------------------------- Draw    standard   axis -----------------------------------
+        if(mode == CALIBRATED) {
+        Mat axis = Mat(3, 3, CV_32FC1);
+        axis.at<float>(0, 0) = 3;
+        axis.at<float>(1, 0) = 0;
+        axis.at<float>(2, 0) = 0;
+        axis.at<float>(0, 1) = 0;
+        axis.at<float>(1, 1) = 3;
+        axis.at<float>(2, 1) = 0;
+        axis.at<float>(0, 2) = 0;
+        axis.at<float>(1, 2) = 0;
+        axis.at<float>(2, 2) = -3;
+        
+        vector<vector<Point3f> > objectPoints(1);
+        for( int i = 0; i < s.boardSize.height; ++i )
+            for( int j = 0; j < s.boardSize.width; ++j )
+                objectPoints[0].push_back(Point3f(float( j*s.squareSize ), float( i*s.squareSize ), 0));
+        
+        objectPoints.resize(imagePoints.size(),objectPoints[0]);
+        //vector<vector<Point2f>> imagePoints;
+        vector<Mat> rvecs;
+        vector<Mat> tvecs;
+        //Find intrinsic and extrinsic camera parameters
+        calibrateCamera(objectPoints, imagePoints, imageSize, cameraMatrix,
+                                     distCoeffs, rvecs, tvecs, s.flag|CV_CALIB_FIX_K4|CV_CALIB_FIX_K5);
+        projectPoints(axis, rvecs[0], tvecs[0], cameraMatrix, distCoeffs, imagePoints);
+        Point corner = pointBuf[8];
+        line(view, corner, imagePoints[0][0], Scalar(0, 0, 255));
+        line(view, corner, imagePoints[1][0], Scalar(0, 255, 0));
+        line(view, corner, imagePoints[2][0], Scalar(255, 0, 0));
         }
         
         if( blinkOutput )
@@ -469,7 +503,7 @@ static bool runCalibration( Settings& s, Size& imageSize, Mat& cameraMatrix, Mat
     calcBoardCornerPositions(s.boardSize, s.squareSize, objectPoints[0], s.calibrationPattern);
     
     objectPoints.resize(imagePoints.size(),objectPoints[0]);
-    
+    cout << "T";
     //Find intrinsic and extrinsic camera parameters
     double rms = calibrateCamera(objectPoints, imagePoints, imageSize, cameraMatrix,
                                  distCoeffs, rvecs, tvecs, s.flag|CV_CALIB_FIX_K4|CV_CALIB_FIX_K5);

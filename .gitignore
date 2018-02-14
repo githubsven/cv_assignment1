@@ -6,3 +6,4 @@
 *.vcxproj*
 /cv_assignment1/.vs
 /cv_assignment1/x64
+*.xcbkptlist
