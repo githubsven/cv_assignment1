@@ -338,6 +338,20 @@ int main(int argc, char* argv[])
         
         putText( view, msg, textOrigin, 1, 1, mode == CALIBRATED ?  GREEN : RED);
         
+        for (int i = 0; i < pointBuf.size(); i++) {
+            string location = to_string((int)pointBuf[i].x) + ", " + to_string((int)pointBuf[i].y);
+            Point position = Point(pointBuf[i].x + 7, pointBuf[i].y);
+            putText( view, location , position, 1, .8f, GREEN);
+        }
+        
+        if (pointBuf.size() > 0) {
+            Scalar color = Scalar(255, 0, 0);
+            line(view, pointBuf[7], pointBuf[8], color);
+            line(view, pointBuf[8], pointBuf[17], color);
+            line(view, pointBuf[16], pointBuf[17], color);
+            line(view, pointBuf[7], pointBuf[16], color);
+        }
+        
         if( blinkOutput )
             bitwise_not(view, view);
         
