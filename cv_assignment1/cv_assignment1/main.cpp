@@ -224,6 +224,9 @@ enum { DETECTION = 0, CAPTURING = 1, CALIBRATED = 2 };
 bool runCalibrationAndSave(Settings& s, Size imageSize, Mat&  cameraMatrix, Mat& distCoeffs,
                            vector<vector<Point2f> > imagePoints );
 
+void drawCube(Mat &view, Mat rvec, Mat tvec, Mat cameraMatrix, Mat distCoeffs);
+void drawAxis(Mat &view, Mat rvec, Mat tvec, Mat cameraMatrix, Mat distCoeffs);
+
 int main(int argc, char* argv[])
 {
     help();
@@ -318,7 +321,7 @@ int main(int argc, char* argv[])
             }
             
             // Draw the corners.
-            drawChessboardCorners( view, s.boardSize, Mat(pointBuf), found );
+            // drawChessboardCorners( view, s.boardSize, Mat(pointBuf), found );
         }
         
         //----------------------------- Output Text ------------------------------------------------
@@ -354,36 +357,18 @@ int main(int argc, char* argv[])
             line(view, pointBuf[7], pointBuf[16], color);
         }*/
         
-        //------------------------------- Draw    standard   axis -----------------------------------
-        if(mode == CALIBRATED) {
-        Mat axis = Mat(3, 3, CV_32FC1);
-        axis.at<float>(0, 0) = 3;
-        axis.at<float>(1, 0) = 0;
-        axis.at<float>(2, 0) = 0;
-        axis.at<float>(0, 1) = 0;
-        axis.at<float>(1, 1) = 3;
-        axis.at<float>(2, 1) = 0;
-        axis.at<float>(0, 2) = 0;
-        axis.at<float>(1, 2) = 0;
-        axis.at<float>(2, 2) = -3;
-        
-        vector<vector<Point3f> > objectPoints(1);
-        for( int i = 0; i < s.boardSize.height; ++i )
-            for( int j = 0; j < s.boardSize.width; ++j )
-                objectPoints[0].push_back(Point3f(float( j*s.squareSize ), float( i*s.squareSize ), 0));
-        
-        objectPoints.resize(imagePoints.size(),objectPoints[0]);
-        //vector<vector<Point2f>> imagePoints;
-        vector<Mat> rvecs;
-        vector<Mat> tvecs;
-        //Find intrinsic and extrinsic camera parameters
-        calibrateCamera(objectPoints, imagePoints, imageSize, cameraMatrix,
-                                     distCoeffs, rvecs, tvecs, s.flag|CV_CALIB_FIX_K4|CV_CALIB_FIX_K5);
-        projectPoints(axis, rvecs[0], tvecs[0], cameraMatrix, distCoeffs, imagePoints);
-        Point corner = pointBuf[8];
-        line(view, corner, imagePoints[0][0], Scalar(0, 0, 255));
-        line(view, corner, imagePoints[1][0], Scalar(0, 255, 0));
-        line(view, corner, imagePoints[2][0], Scalar(255, 0, 0));
+        //------------------------------- Draw    assignment   things -----------------------------------
+        if(mode == CALIBRATED && found) { // SolvePnP will crash if the pattern was not found
+            vector<Point3f> objectPoints;
+            for (int i = 0; i < s.boardSize.height; i++)
+                for (int j = 0; j < s.boardSize.width; j++)
+                    objectPoints.push_back(Point3f(i * s.squareSize, j * s.squareSize, 0)); // The 3D points that correspond to the image points
+            
+            Mat rvec, tvec; //rotation vector, translation vector
+            solvePnP(objectPoints, pointBuf, cameraMatrix, distCoeffs, rvec, tvec); //Solve for which rvec and tvec the object points best match the image points (a.k.a. find the extrinsic parameters).
+            
+            drawAxis(view, rvec, tvec, cameraMatrix, distCoeffs);
+            drawCube(view, rvec, tvec, cameraMatrix, distCoeffs);
         }
         
         if( blinkOutput )
@@ -436,6 +421,54 @@ int main(int argc, char* argv[])
     
     
     return 0;
+}
+
+// Draws a cube at the origin of the world coordinates
+void drawCube(Mat &view, Mat rvec, Mat tvec, Mat cameraMatrix, Mat distCoeffs) {
+    vector<Point3f> axis(8); //Defines the corners of the cube
+    axis[0] = Point3f(0, 0, 0);
+    axis[1] = Point3f(0, 150, 0);
+    axis[2] = Point3f(150, 150, 0);
+    axis[3] = Point3f(150, 0, 0);
+    axis[4] = Point3f(0, 0, 150);
+    axis[5] = Point3f(0, 150, 150);
+    axis[6] = Point3f(150, 150, 150);
+    axis[7] = Point3f(150, 0, 150);
+    
+    vector<Point2f> imgPts; // Projected 3D cube corners
+    projectPoints(axis, rvec, tvec, cameraMatrix, distCoeffs, imgPts); //Project the 3D points to 2D points
+    
+    Scalar color = Scalar(103, 65, 203); //A nice shade of pink
+    
+    //Draw bottom square
+    for (int i = 1; i < 4; i ++)
+        line(view, imgPts[i - 1], imgPts[i], color, 5);
+    line(view, imgPts[0], imgPts[3], color, 5);
+    
+    //Draw lines from bottom square to top square
+    for (int i = 4; i < 8; i ++)
+        line(view, imgPts[i - 4], imgPts[i], color, 5);
+    
+    //Draw top square
+    for (int i = 5; i < 8; i ++)
+        line(view, imgPts[i - 1], imgPts[i], color, 5);
+    line(view, imgPts[4], imgPts[7], color, 5);
+}
+
+// Draws the axis at the origin of the world coordinates
+void drawAxis(Mat &view, Mat rvec, Mat tvec, Mat cameraMatrix, Mat distCoeffs) {
+    vector<Point3f> axis(4);
+    axis[0] = Point3f(0, 0, 0);
+    axis[1] = Point3f(250, 0, 0);
+    axis[2] = Point3f(0, 250, 0);
+    axis[3] = Point3f(0, 0, 250);
+    
+    vector<Point2f> imgPts; // Projected 3D cube corners
+    projectPoints(axis, rvec, tvec, cameraMatrix, distCoeffs, imgPts);
+    
+    line(view, imgPts[0], imgPts[1], Scalar(0, 0, 255), 3); // draw x-axis
+    line(view, imgPts[0], imgPts[2], Scalar(0, 255, 0), 3); // draw y-axis
+    line(view, imgPts[0], imgPts[3], Scalar(255, 0, 0), 3); // dray z-axis
 }
 
 static double computeReprojectionErrors( const vector<vector<Point3f> >& objectPoints,
@@ -597,6 +630,7 @@ static void saveCameraParams( Settings& s, Size& imageSize, Mat& cameraMatrix, M
     }
 }
 
+//Calculate the camera parameters and save them to a file
 bool runCalibrationAndSave(Settings& s, Size imageSize, Mat&  cameraMatrix, Mat& distCoeffs,vector<vector<Point2f> > imagePoints )
 {
     vector<Mat> rvecs, tvecs;
